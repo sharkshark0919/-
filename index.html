@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>圖片上傳與分析</title>
+  <style>
+    body { font-family: sans-serif; max-width: 700px; margin: 40px auto; }
+    #result { white-space: pre-wrap; border: 1px solid #ccc; padding: 10px; margin-top: 20px; }
+    #preview { max-width: 300px; margin-top: 10px; }
+
+    /* 錯題本區塊 */
+    #wrongbookWrap { display:none; margin-top: 18px; }
+    #wrongbookFrame { width:100%; height:80vh; border:1px solid #ddd; border-radius:10px; }
+    .row { display:flex; gap:10px; align-items:center; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <h1>圖片分析介面</h1>
+
+  <div class="row">
+    <input type="file" id="imageInput" accept="image/*" />
+    <button id="sendBtn">送出圖片</button>
+
+    <!-- 錯題本按鈕 -->
+    <button id="wrongbookBtn" type="button">錯題本</button>
+  </div>
+
+  <div>
+    <img id="preview" alt="預覽" />
+  </div>
+
+  <p id="status"></p>
+  <h2>答案</h2>
+  <div id="result"></div>
+
+  <!-- 錯題本嵌入區 -->
+  <div id="wrongbookWrap">
+    <div class="row" style="margin: 8px 0 10px;">
+      <h2 style="margin:0;">錯題本</h2>
+      <button id="closeWrongbook" type="button">關閉</button>
+
+      <!-- 開新分頁看 Notion -->
+      <a id="wrongbookLink" href="#" target="_blank" rel="noopener">在 Notion 開啟</a>
+    </div>
+
+    <iframe
+      id="wrongbookFrame"
+      loading="lazy"
+      referrerpolicy="no-referrer-when-downgrade"
+    ></iframe>
+  </div>
+
+  <script>
+    // n8n Webhook（回文字）
+    const WEBHOOK_URL = "https://sharkshark09190919.zeabur.app/webhook-test/image";
+
+    // ✅ 你目前確認「可開啟」的 Notion embed 連結（資料庫 view）
+    const WRONGBOOK_EMBED_URL =
+      "https://longing-airboat-376.notion.site/embed/2d599359d4cb80f7810ff3dbd70aef83?v=2d599359d4cb806b8336000c2792bbb7";
+
+    // ✅ 正常開啟（新分頁）連結
+    const WRONGBOOK_OPEN_URL =
+      "https://longing-airboat-376.notion.site/2d599359d4cb80f7810ff3dbd70aef83?v=2d599359d4cb806b8336000c2792bbb7&source=copy_link";
+
+    const imageInput = document.getElementById("imageInput");
+    const sendBtn = document.getElementById("sendBtn");
+    const statusEl = document.getElementById("status");
+    const resultEl = document.getElementById("result");
+    const previewEl = document.getElementById("preview");
+
+    // 錯題本相關元素
+    const wrongbookBtn = document.getElementById("wrongbookBtn");
+    const wrongbookWrap = document.getElementById("wrongbookWrap");
+    const wrongbookFrame = document.getElementById("wrongbookFrame");
+    const closeWrongbook = document.getElementById("closeWrongbook");
+    const wrongbookLink = document.getElementById("wrongbookLink");
+
+    imageInput.onchange = () => {
+      const file = imageInput.files[0];
+      if (!file) return;
+      previewEl.src = URL.createObjectURL(file);
+    };
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // 錯題本按鈕行為
+    wrongbookBtn.onclick = () => {
+      wrongbookWrap.style.display = "block";
+
+      // 每次都指定一次，避免前一次載入錯誤後卡住
+      if (wrongbookFrame.src !== WRONGBOOK_EMBED_URL) {
+        wrongbookFrame.src = WRONGBOOK_EMBED_URL;
+      }
+
+      // 右側連結：開新分頁
+      wrongbookLink.href = WRONGBOOK_OPEN_URL;
+
+      wrongbookWrap.scrollIntoView({ behavior: "smooth" });
+    };
+
+    closeWrongbook.onclick = () => {
+      wrongbookWrap.style.display = "none";
+    };
+
+    sendBtn.onclick = async () => {
+      const file = imageInput.files[0];
+      if (!file) return alert("請先選擇一張圖片");
+
+      statusEl.textContent = "上傳並分析中...";
+      resultEl.textContent = "";
+
+      try {
+        const base64 = await fileToBase64(file);
+
+        const res = await fetch(WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image_base64: base64 }),
+        });
+
+        const text = await res.text();
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}\n${text}`);
+        }
+
+        statusEl.textContent = "完成";
+        resultEl.textContent = text;
+
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "發生錯誤";
+        resultEl.textContent = String(err);
+      }
+    };
+  </script>
+</body>
+</html>
